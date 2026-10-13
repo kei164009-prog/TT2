@@ -1,0 +1,1403 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>3D CHESS (スマホ画面完全最適化)</title>
+  <style>
+    :root {
+      --bg: #0f1116;
+      --card-bg: rgba(24, 27, 36, 0.94);
+      --gold: #d4af37;
+      --gold-light: #f3e5ab;
+      --green: #2e7d32;
+    }
+
+    * { box-sizing: border-box; user-select: none; -webkit-user-select: none; margin: 0; padding: 0; }
+    html, body {
+      background: var(--bg);
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Georgia", serif;
+      overflow: hidden;
+      width: 100%;
+      height: 100%;
+      touch-action: none; /* スマホでの誤ズーム・スクロールを完全防止 */
+    }
+
+    #canvas-container {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      cursor: pointer;
+    }
+
+    /* ================= ホーム画面 ================= */
+    #home-screen {
+      position: fixed; inset: 0;
+      background: radial-gradient(circle at center, #1a1e29 0%, #090a0d 100%);
+      z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 12px; overflow-y: auto;
+      padding: max(16px, env(safe-area-inset-top)) 14px max(16px, env(safe-area-inset-bottom)) 14px;
+    }
+
+    .title {
+      font-size: clamp(2.2rem, 7vw, 3.2rem);
+      font-weight: 700;
+      letter-spacing: clamp(6px, 2.5vw, 12px);
+      color: #ffffff;
+      text-shadow: 0 4px 20px rgba(0, 0, 0, 0.7);
+      font-family: "Georgia", serif;
+      border-bottom: 2px solid var(--gold);
+      padding-bottom: 4px;
+      text-align: center;
+    }
+
+    .device-badge {
+      font-size: 0.75rem; color: #8899aa; background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12); padding: 3px 10px; border-radius: 12px;
+    }
+
+    /* プロフィールカード（左右の潰れ防止） */
+    .profile-card {
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      background: rgba(212, 175, 55, 0.05); border: 1px solid rgba(212, 175, 55, 0.35);
+      border-radius: 16px; padding: 14px 16px; width: min(340px, 94vw);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5); position: relative;
+    }
+
+    .edit-profile-btn {
+      position: absolute; top: 10px; right: 10px; background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(212, 175, 55, 0.4); color: var(--gold); padding: 4px 10px;
+      border-radius: 6px; font-size: 0.75rem; cursor: pointer; font-weight: bold;
+    }
+
+    .avatar-display-box {
+      width: 58px; height: 58px; border-radius: 50%;
+      background: radial-gradient(circle, #2c3242 0%, #171922 100%);
+      border: 2px solid var(--gold); display: flex; align-items: center; justify-content: center;
+      font-size: 30px; overflow: hidden; box-shadow: 0 0 16px rgba(212, 175, 55, 0.3);
+    }
+    .avatar-img { width: 100%; height: 100%; object-fit: cover; }
+
+    .profile-name { font-size: 1.1rem; font-weight: bold; color: #fff; }
+    .profile-badge {
+      font-size: 0.72rem; color: var(--gold-light); background: rgba(212, 175, 55, 0.12);
+      border: 1px solid rgba(212, 175, 55, 0.3); padding: 2px 10px; border-radius: 10px; letter-spacing: 1px;
+    }
+    .profile-bio {
+      font-size: 0.78rem; color: #aaa; font-style: italic; text-align: center; max-width: 250px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    .rating-row {
+      display: flex; align-items: baseline; gap: 8px; margin-top: 4px;
+      border-top: 1px solid rgba(255,255,255,0.08); padding-top: 6px; width: 100%; justify-content: center;
+    }
+    .rating-value { font-size: 1.7rem; font-weight: 800; color: var(--gold); font-family: "Georgia", serif; }
+    .streak-badge { font-size: 0.78rem; color: #ff9100; font-weight: bold; }
+
+    .menu-box {
+      display: flex; flex-direction: column; gap: 10px; width: min(340px, 94vw);
+      align-items: center; background: rgba(255, 255, 255, 0.03); padding: 14px 16px;
+      border-radius: 14px; border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+
+    .btn {
+      width: 100%; background: #252a38; color: #ffffff; border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 12px; font-size: 0.95rem; font-weight: 600; border-radius: 8px; cursor: pointer; text-align: center;
+      touch-action: manipulation;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn.primary { background: var(--green); border: none; font-size: 1.05rem; }
+
+    .cpu-setting {
+      width: 100%; display: flex; flex-direction: column; gap: 6px; padding-top: 6px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+    .slider-header { display: flex; justify-content: space-between; font-size: 0.85rem; color: #ddd; }
+    .slider-val { color: var(--gold); font-weight: bold; }
+    input[type=range] { width: 100%; accent-color: var(--gold); cursor: pointer; height: 28px; }
+
+    #matching-status { display: none; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
+    .waiting-text { font-size: 1.05rem; color: var(--gold); font-weight: bold; letter-spacing: 2px; animation: blink 1.4s infinite alternate; }
+    @keyframes blink { 0% { opacity: 0.4; } 100% { opacity: 1; } }
+    .btn.cancel { background: #c62828; border: none; padding: 10px; font-size: 0.85rem; }
+
+    /* ================= ゲーム画面オーバーレイ ================= */
+    .ui-layer {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10;
+      pointer-events: none; display: flex; flex-direction: column; justify-content: space-between;
+      padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+    }
+
+    .hud-bar {
+      pointer-events: auto; background: var(--card-bg); backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 8px 12px;
+      display: flex; align-items: center; justify-content: space-between; width: 100%; max-width: 520px;
+      margin: 0 auto; box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+    }
+
+    .hud-player-info { display: flex; align-items: center; gap: 8px; }
+    .hud-avatar {
+      width: 34px; height: 34px; border-radius: 50%; background: rgba(255,255,255,0.08);
+      border: 1px solid var(--gold); display: flex; align-items: center; justify-content: center;
+      font-size: 20px; overflow: hidden;
+    }
+
+    #check-banner {
+      display: none; position: absolute; top: 22%; left: 50%; transform: translate(-50%, -50%);
+      background: rgba(211, 47, 47, 0.9); border: 2px solid #ff5252; padding: 10px 32px;
+      border-radius: 30px; font-size: 1.6rem; font-weight: 900; letter-spacing: 4px;
+      color: #fff; box-shadow: 0 0 30px rgba(255, 82, 82, 0.8);
+      animation: popBanner 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    @keyframes popBanner {
+      0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+      100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    }
+
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.82);
+      z-index: 200; align-items: center; justify-content: center; padding: 16px;
+    }
+    .modal-box {
+      background: #1e222d; border: 2px solid var(--gold); border-radius: 14px; padding: 22px;
+      text-align: center; max-width: 360px; width: 100%; box-shadow: 0 12px 48px rgba(0,0,0,0.8);
+    }
+    .modal-title { font-size: 1.45rem; color: var(--gold); font-weight: bold; margin-bottom: 10px; }
+    .modal-desc { font-size: 0.95rem; color: #eee; margin-bottom: 12px; line-height: 1.5; }
+    .modal-rating-delta {
+      font-size: 1.1rem; font-weight: bold; color: #00e676; margin-bottom: 16px; padding: 6px 12px;
+      background: rgba(0, 230, 118, 0.1); border-radius: 6px; display: inline-block;
+    }
+    .modal-rating-delta.minus { color: #ff5252; background: rgba(255, 82, 82, 0.1); }
+
+    .form-group { display: flex; flex-direction: column; gap: 6px; text-align: left; margin-bottom: 12px; }
+    .form-label { font-size: 0.8rem; color: #bbb; font-weight: bold; }
+    .form-input {
+      background: #14161f; border: 1px solid #3d4455; color: #fff;
+      padding: 9px; border-radius: 6px; font-size: 0.95rem; outline: none;
+    }
+    .avatar-selector { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 4px; }
+    .avatar-opt {
+      width: 42px; height: 42px; border-radius: 8px; background: #14161f; border: 2px solid #333;
+      display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer;
+    }
+    .avatar-opt.active { border-color: var(--gold); background: rgba(212, 175, 55, 0.2); }
+    .upload-btn {
+      background: #2a3b5c; border: 1px dashed var(--gold); color: #fff; padding: 8px;
+      border-radius: 6px; font-size: 0.85rem; cursor: pointer; text-align: center; margin-top: 4px;
+    }
+  </style>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+<div id="canvas-container"></div>
+
+<!-- ホーム画面 -->
+<div id="home-screen">
+  <div class="title">CHESS</div>
+  <div class="device-badge" id="device-info-badge">検出中...</div>
+
+  <div class="profile-card">
+    <button class="edit-profile-btn" onclick="openProfileModal()">✏️ 編集</button>
+    <div class="avatar-display-box" id="home-avatar-display">♔</div>
+    <div class="profile-name" id="home-name-display">プレイヤー</div>
+    <div class="profile-badge" id="home-title-display">駆け出しの駒使い</div>
+    <div class="profile-bio" id="home-bio-display">よろしくお願いします！</div>
+
+    <div class="rating-row">
+      <span style="font-size: 0.8rem; color: #888;">Rating:</span>
+      <span class="rating-value" id="home-rating-display">1200</span>
+      <span class="streak-badge" id="home-streak-display">🔥 0連勝</span>
+    </div>
+  </div>
+
+  <div class="menu-box">
+    <div id="match-btn-container" style="width: 100%;">
+      <button class="btn primary" onclick="startMatchmaking()">マッチする</button>
+    </div>
+
+    <div id="matching-status">
+      <div class="waiting-text">相手を探しています、、</div>
+      <button class="btn cancel" onclick="cancelMatchmaking()">キャンセル</button>
+    </div>
+
+    <div class="cpu-setting">
+      <div class="slider-header">
+        <span>CPUの強さ</span>
+        <span class="slider-val" id="cpu-level-text">Lv.100 (世界最強)</span>
+      </div>
+      <input type="range" id="cpu-level" min="1" max="100" value="100" oninput="updateCpuLevelText(this.value)">
+      <button class="btn" onclick="startCpuGame()">CPUと対戦する</button>
+    </div>
+  </div>
+</div>
+
+<!-- プロフィール編集モーダル -->
+<div class="modal-overlay" id="profile-modal">
+  <div class="modal-box">
+    <div class="modal-title">プロフィール編集</div>
+    
+    <div class="form-group">
+      <div class="form-label">名前</div>
+      <input type="text" class="form-input" id="input-name" maxlength="12" placeholder="プレイヤー名">
+    </div>
+
+    <div class="form-group">
+      <div class="form-label">アバター（画像アップロード または アイコン）</div>
+      <label class="upload-btn">
+        📷 好きな画像をアップロード
+        <input type="file" id="avatar-file-input" accept="image/*" style="display:none;" onchange="handleAvatarUpload(event)">
+      </label>
+      
+      <div class="avatar-selector" style="margin-top: 8px;">
+        <div class="avatar-opt" onclick="selectAvatarIcon(this, '♔')">♔</div>
+        <div class="avatar-opt" onclick="selectAvatarIcon(this, '♕')">♕</div>
+        <div class="avatar-opt" onclick="selectAvatarIcon(this, '♘')">♘</div>
+        <div class="avatar-opt" onclick="selectAvatarIcon(this, '👑')">👑</div>
+        <div class="avatar-opt" onclick="selectAvatarIcon(this, '⚔️')">⚔️</div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <div class="form-label">ひとことメッセージ</div>
+      <input type="text" class="form-input" id="input-bio" maxlength="24" placeholder="自己紹介や意気込み">
+    </div>
+
+    <div style="display:flex; gap:10px; margin-top:10px;">
+      <button class="btn" style="flex:1;" onclick="closeProfileModal()">戻る</button>
+      <button class="btn primary" style="flex:1;" onclick="saveProfile()">保存する</button>
+    </div>
+  </div>
+</div>
+
+<!-- ゲーム中HUD -->
+<div class="ui-layer" id="game-ui" style="display: none;">
+  <div class="hud-bar">
+    <div class="hud-player-info">
+      <div class="hud-avatar" id="hud-avatar">♔</div>
+      <div>
+        <div style="font-weight:bold; font-size:0.85rem;" id="hud-player-name">プレイヤー</div>
+        <div id="status-text" style="font-size:0.72rem; color:#aaa;">手番: あなた</div>
+      </div>
+      <div id="piece-tag" style="display:none; color:var(--gold); font-weight:bold; background:rgba(212, 175, 55, 0.15); border:1px solid rgba(212,175,55,0.4); padding:2px 6px; border-radius:4px; font-size:0.72rem;"></div>
+    </div>
+    <button class="btn" style="padding:6px 12px; font-size:0.8rem; width: auto;" onclick="leaveGame()">ホーム</button>
+  </div>
+  <div id="check-banner">CHECK !!</div>
+</div>
+
+<!-- 退出・勝敗モーダル -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-title" id="modal-title">勝利！</div>
+    <div class="modal-desc" id="modal-desc">相手が退出しました。あなたの不戦勝です！</div>
+    <div class="modal-rating-delta" id="modal-rating-delta">+16 (Rating: 1216)</div><br>
+    <button class="btn primary" onclick="closeModalAndHome()">ホームに戻る</button>
+  </div>
+</div>
+
+<script>
+const GAS_URL = "https://script.google.com/macros/s/AKfycbwrS7LEcHcqsreLchZrgM6-yI8NN5S3K0FMnK_SF4cSg9YpqknWVfyt-ZcEWQarqAUcRQ/exec";
+const myPid = 'p_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+
+const PIECE_NAMES = { 'P':'ポーン', 'B':'ビショップ', 'Q':'クイーン', 'R':'ルーク', 'N':'ナイト', 'K':'キング' };
+const SQ_SIZE = 2.0;
+const BOARD_OFFSET = 3.5;
+const BOARD_WORLD_WIDTH = 18.0; // 盤面全体の水平幅
+
+/* ================= Web Audio API ================= */
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function playSound(type) {
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  const now = audioCtx.currentTime;
+
+  if (type === 'move') {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.frequency.setValueAtTime(280, now);
+    osc.frequency.exponentialRampToValueAtTime(80, now + 0.08);
+    gain.gain.setValueAtTime(0.5, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(now); osc.stop(now + 0.08);
+  } else if (type === 'capture') {
+    const osc1 = audioCtx.createOscillator();
+    const osc2 = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc1.frequency.setValueAtTime(160, now);
+    osc1.frequency.exponentialRampToValueAtTime(40, now + 0.16);
+    osc2.type = 'triangle';
+    osc2.frequency.setValueAtTime(450, now);
+    osc2.frequency.exponentialRampToValueAtTime(80, now + 0.12);
+    gain.gain.setValueAtTime(0.8, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.16);
+    osc1.connect(gain); osc2.connect(gain); gain.connect(audioCtx.destination);
+    osc1.start(now); osc2.start(now); osc1.stop(now + 0.16); osc2.stop(now + 0.16);
+  } else if (type === 'check') {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, now);
+    osc.frequency.setValueAtTime(1174, now + 0.08);
+    gain.gain.setValueAtTime(0.4, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(now); osc.stop(now + 0.35);
+  } else if (type === 'win') {
+    [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.frequency.setValueAtTime(freq, now + i * 0.1);
+      gain.gain.setValueAtTime(0.4, now + i * 0.1);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.1 + 0.4);
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(now + i * 0.1); osc.stop(now + i * 0.1 + 0.4);
+    });
+  }
+}
+
+/* ================= 端末の自動検出 ================= */
+function detectDeviceType() {
+  const ua = navigator.userAgent;
+  const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+  const isMobileUa = /iPhone|iPod|Android.*Mobile|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+  const isTabletUa = /iPad|Android(?!.*Mobile)/i.test(ua);
+
+  if (isMobileUa || (isTouch && window.innerWidth <= 600)) return 'mobile';
+  if (isTabletUa || (isTouch && window.innerWidth <= 1024)) return 'tablet';
+  return 'desktop';
+}
+
+function updateDeviceBadge() {
+  const type = detectDeviceType();
+  const badge = document.getElementById('device-info-badge');
+  if (type === 'mobile') badge.textContent = '📱 Mobile 最適化モード';
+  else if (type === 'tablet') badge.textContent = '📟 Tablet 最適化モード';
+  else badge.textContent = '💻 Desktop モード';
+}
+updateDeviceBadge();
+
+/* ================= プロフィール管理 ================= */
+let profile = {
+  name: localStorage.getItem('chess_profile_name') || 'プレイヤー',
+  avatarType: localStorage.getItem('chess_profile_av_type') || 'icon',
+  avatarIcon: localStorage.getItem('chess_profile_avatar') || '♔',
+  avatarImage: localStorage.getItem('chess_profile_image') || '',
+  bio: localStorage.getItem('chess_profile_bio') || 'よろしくお願いします！'
+};
+
+function renderAvatarElement(containerEl, type, icon, imgUrl) {
+  containerEl.innerHTML = '';
+  if (type === 'image' && imgUrl) {
+    const img = document.createElement('img');
+    img.src = imgUrl;
+    img.className = 'avatar-img';
+    containerEl.appendChild(img);
+  } else {
+    containerEl.textContent = icon;
+  }
+}
+
+function getTitleByRating(r) {
+  if (r >= 2000) return 'グランドマスター 🏆';
+  if (r >= 1800) return 'チェスマスター 🎖️';
+  if (r >= 1600) return 'エキスパート ⚔️';
+  if (r >= 1400) return 'クラブ・チャンピオン 🛡️';
+  if (r >= 1200) return 'ストリート・棋士 ♟️';
+  return '駆け出しの駒使い 🌱';
+}
+
+function updateProfileUI() {
+  document.getElementById('home-name-display').textContent = profile.name;
+  renderAvatarElement(document.getElementById('home-avatar-display'), profile.avatarType, profile.avatarIcon, profile.avatarImage);
+  document.getElementById('home-bio-display').textContent = profile.bio;
+  document.getElementById('home-title-display').textContent = getTitleByRating(playerRating);
+
+  document.getElementById('hud-player-name').textContent = `${profile.name} (${playerRating})`;
+  renderAvatarElement(document.getElementById('hud-avatar'), profile.avatarType, profile.avatarIcon, profile.avatarImage);
+}
+
+function openProfileModal() {
+  document.getElementById('input-name').value = profile.name;
+  document.getElementById('input-bio').value = profile.bio;
+  document.getElementById('profile-modal').style.display = 'flex';
+}
+
+function closeProfileModal() {
+  document.getElementById('profile-modal').style.display = 'none';
+}
+
+function selectAvatarIcon(el, icon) {
+  document.querySelectorAll('.avatar-opt').forEach(o => o.classList.remove('active'));
+  el.classList.add('active');
+  profile.avatarType = 'icon';
+  profile.avatarIcon = icon;
+  profile.avatarImage = '';
+}
+
+function handleAvatarUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(evt) {
+    const img = new Image();
+    img.onload = function() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 128; canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, 128, 128);
+      profile.avatarType = 'image';
+      profile.avatarImage = canvas.toDataURL('image/jpeg', 0.85);
+      document.querySelectorAll('.avatar-opt').forEach(o => o.classList.remove('active'));
+      alert("アバター画像をセットしました！「保存する」を押してください。");
+    };
+    img.src = evt.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function saveProfile() {
+  const nameInput = document.getElementById('input-name').value.trim();
+  const bioInput = document.getElementById('input-bio').value.trim();
+  profile.name = nameInput || 'プレイヤー';
+  profile.bio = bioInput || 'よろしくお願いします！';
+
+  localStorage.setItem('chess_profile_name', profile.name);
+  localStorage.setItem('chess_profile_av_type', profile.avatarType);
+  localStorage.setItem('chess_profile_avatar', profile.avatarIcon);
+  localStorage.setItem('chess_profile_image', profile.avatarImage);
+  localStorage.setItem('chess_profile_bio', profile.bio);
+
+  updateProfileUI();
+  closeProfileModal();
+}
+
+/* ================= 通信ヘルパー (JSONP) ================= */
+let isRequesting = false;
+function requestGAS(params) {
+  return new Promise((resolve, reject) => {
+    const cbName = 'gas_cb_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+    const script = document.createElement('script');
+    const query = new URLSearchParams({ ...params, callback: cbName }).toString();
+    script.src = `${GAS_URL}?${query}`;
+
+    const timer = setTimeout(() => { cleanup(); reject(new Error("Timeout")); }, 5000);
+    function cleanup() {
+      clearTimeout(timer);
+      delete window[cbName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+    window[cbName] = (data) => { cleanup(); resolve(data); };
+    script.onerror = () => { cleanup(); reject(new Error("Network Error")); };
+    document.body.appendChild(script);
+  });
+}
+
+/* ================= リアルタイムレーティング ＆ 連勝数 ================= */
+let playerRating = parseInt(localStorage.getItem('chess_rating') || '1200');
+let winsCount = parseInt(localStorage.getItem('chess_wins') || '0');
+let lossesCount = parseInt(localStorage.getItem('chess_losses') || '0');
+let streakCount = parseInt(localStorage.getItem('chess_streak') || '0');
+
+function updateHomeRatingUI() {
+  document.getElementById('home-rating-display').textContent = playerRating;
+  document.getElementById('home-streak-display').textContent = `🔥 ${streakCount}連勝`;
+  updateProfileUI();
+}
+updateHomeRatingUI();
+
+function applyRatingChange(won) {
+  const oldRating = playerRating;
+  let delta = won ? 16 : -16;
+  playerRating = Math.max(400, playerRating + delta);
+  if (won) { winsCount++; streakCount++; } else { lossesCount++; streakCount = 0; }
+
+  localStorage.setItem('chess_rating', playerRating);
+  localStorage.setItem('chess_wins', winsCount);
+  localStorage.setItem('chess_losses', lossesCount);
+  localStorage.setItem('chess_streak', streakCount);
+  updateHomeRatingUI();
+
+  const deltaEl = document.getElementById('modal-rating-delta');
+  if (won) {
+    deltaEl.className = 'modal-rating-delta';
+    deltaEl.textContent = `+${delta} (Rating: ${oldRating} → ${playerRating})`;
+  } else {
+    deltaEl.className = 'modal-rating-delta minus';
+    deltaEl.textContent = `${delta} (Rating: ${oldRating} → ${playerRating})`;
+  }
+}
+
+/* ================= 3D空間・シャドウ・パーティクル ================= */
+let scene, camera, renderer, raycaster, mouse;
+let boardMeshes = [];
+let pieceMeshes = {};
+let hintMeshes = [];
+let selectedTileMesh = null;
+let particles = [];
+
+let gameMode = 'online';
+let myColor = 'w';
+let cpuLevel = 100;
+let matchPollTimer = null;
+let movePollTimer = null;
+
+let board = [];
+let turn = 'w';
+let selectedSq = null;
+let validMoves = [];
+let lastMove = null;
+let isGameOver = false;
+let isAnimating = false;
+let castling = { K: true, Q: true, k: true, q: true };
+
+const materials = {
+  boardLight: new THREE.MeshStandardMaterial({ color: 0xead8be, roughness: 0.35, metalness: 0.05 }),
+  boardDark:  new THREE.MeshStandardMaterial({ color: 0x5a341b, roughness: 0.45, metalness: 0.05 }),
+  boardBorder: new THREE.MeshStandardMaterial({ color: 0x1c1008, roughness: 0.6 }),
+  pieceWhite: new THREE.MeshStandardMaterial({ color: 0xf5f3ee, roughness: 0.22, metalness: 0.1 }),
+  pieceBlack: new THREE.MeshStandardMaterial({ color: 0x1e1e23, roughness: 0.25, metalness: 0.15 }),
+  selectedTile: new THREE.MeshBasicMaterial({ color: 0xffd54f, transparent: true, opacity: 0.65 }),
+  hintMove: new THREE.MeshBasicMaterial({ color: 0x00e676, transparent: true, opacity: 0.75 }),
+  hintCapture: new THREE.MeshBasicMaterial({ color: 0xff3d00, transparent: true, opacity: 0.85 })
+};
+
+function init3D() {
+  const container = document.getElementById('canvas-container');
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0f1116);
+
+  camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+  setFixedCameraView('w');
+
+  renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  container.appendChild(renderer.domElement);
+
+  const ambient = new THREE.AmbientLight(0xffffff, 0.55);
+  scene.add(ambient);
+
+  const sunLight = new THREE.DirectionalLight(0xfff6ea, 1.25);
+  sunLight.position.set(11, 24, 13);
+  sunLight.castShadow = true;
+  sunLight.shadow.mapSize.width = 2048;
+  sunLight.shadow.mapSize.height = 2048;
+  sunLight.shadow.camera.near = 1.0;
+  sunLight.shadow.camera.far = 70;
+  const shadowRange = 14;
+  sunLight.shadow.camera.left = -shadowRange;
+  sunLight.shadow.camera.right = shadowRange;
+  sunLight.shadow.camera.top = shadowRange;
+  sunLight.shadow.camera.bottom = -shadowRange;
+  sunLight.shadow.bias = -0.0006;
+  scene.add(sunLight);
+
+  const fillLight = new THREE.DirectionalLight(0x8da1c4, 0.35);
+  fillLight.position.set(-12, 16, -14);
+  scene.add(fillLight);
+
+  const baseBox = new THREE.Mesh(new THREE.BoxGeometry(17.6, 0.6, 17.6), materials.boardBorder);
+  baseBox.position.y = -0.31;
+  baseBox.receiveShadow = true;
+  scene.add(baseBox);
+
+  const tileGeo = new THREE.BoxGeometry(SQ_SIZE, 0.2, SQ_SIZE);
+  for (let r = 0; r < 8; r++) {
+    boardMeshes[r] = [];
+    for (let c = 0; c < 8; c++) {
+      const isLight = (r + c) % 2 === 0;
+      const tile = new THREE.Mesh(tileGeo, isLight ? materials.boardLight : materials.boardDark);
+      tile.position.set((c - BOARD_OFFSET) * SQ_SIZE, 0, (r - BOARD_OFFSET) * SQ_SIZE);
+      tile.receiveShadow = true;
+      tile.userData = { r, c, isSquare: true };
+      scene.add(tile);
+      boardMeshes[r][c] = tile;
+    }
+  }
+
+  selectedTileMesh = new THREE.Mesh(new THREE.BoxGeometry(SQ_SIZE, 0.22, SQ_SIZE), materials.selectedTile);
+  selectedTileMesh.visible = false;
+  scene.add(selectedTileMesh);
+
+  raycaster = new THREE.Raycaster();
+  mouse = new THREE.Vector2();
+
+  window.addEventListener('resize', onResize);
+
+  let pointerDownPos = { x: 0, y: 0 };
+  let pointerDownTime = 0;
+
+  renderer.domElement.addEventListener('pointerdown', (e) => {
+    pointerDownPos = { x: e.clientX, y: e.clientY };
+    pointerDownTime = Date.now();
+  });
+
+  renderer.domElement.addEventListener('pointerup', (e) => {
+    const dist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
+    if (dist < 15 && Date.now() - pointerDownTime < 500) {
+      onPointerTap(e);
+    }
+  });
+
+  animate();
+}
+
+function onResize() {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+  setFixedCameraView(myColor);
+  updateDeviceBadge();
+}
+
+function triggerCaptureSparks(pos) {
+  const pCount = 20;
+  const geom = new THREE.SphereGeometry(0.08, 6, 6);
+  const mat = new THREE.MeshBasicMaterial({ color: 0xffd54f });
+
+  for (let i = 0; i < pCount; i++) {
+    const p = new THREE.Mesh(geom, mat);
+    p.position.copy(pos);
+    p.position.y += 0.5;
+    const velocity = new THREE.Vector3(
+      (Math.random() - 0.5) * 6,
+      Math.random() * 5 + 2,
+      (Math.random() - 0.5) * 6
+    );
+    scene.add(p);
+    particles.push({ mesh: p, vel: velocity, life: 1.0 });
+  }
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.mesh.position.addScaledVector(p.vel, 0.02);
+    p.vel.y -= 0.15;
+    p.life -= 0.035;
+    p.mesh.scale.setScalar(Math.max(0.01, p.life));
+    if (p.life <= 0) {
+      scene.remove(p.mesh);
+      particles.splice(i, 1);
+    }
+  }
+
+  renderer.render(scene, camera);
+}
+
+/* ================= 左右の潰れ・見切れを数学的に完全補正するカメラ ================= */
+function setFixedCameraView(mySide) {
+  const aspect = window.innerWidth / window.innerHeight;
+
+  // 盤面全体（幅18.0ユニット）が画面左右に絶対に収まる基準距離を算出
+  // 垂直画角 45度のPerspectiveCameraの場合:
+  // visibleWidth = 2 * dist * tan(22.5°) * aspect
+  const vFovRad = (camera.fov * Math.PI) / 360; // 45 / 2 = 22.5 deg
+  const tanHalfVFov = Math.tan(vFovRad);
+
+  // 左右に適切な余白（マージン）を設けてジャストフィットさせる
+  const requiredDistH = (BOARD_WORLD_WIDTH * 1.08) / (2 * tanHalfVFov * aspect);
+  const baseStandardDist = 22.0; // PC/横画面の標準距離
+
+  // 縦長スマホ（aspect < 1.0）の時は水平幅に合わせてカメラを引き、横画面では標準距離を採用
+  const finalDistance = Math.max(baseStandardDist, requiredDistH);
+
+  // 見下ろし角度（約48度）を正確に維持してYとZを配分
+  const angleRad = Math.atan2(16.5, 14.5);
+  const yPos = finalDistance * Math.sin(angleRad);
+  const zPos = finalDistance * Math.cos(angleRad);
+
+  camera.position.set(0, yPos, mySide === 'w' ? zPos : -zPos);
+  camera.lookAt(0, 0, 0);
+  camera.updateProjectionMatrix();
+}
+
+/* ================= 3D駒モデリング ================= */
+function createLabelSprite(pieceChar) {
+  const isWhite = pieceChar === pieceChar.toUpperCase();
+  const name = PIECE_NAMES[pieceChar.toUpperCase()];
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 160; canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = isWhite ? 'rgba(255, 255, 255, 0.94)' : 'rgba(25, 25, 32, 0.94)';
+  ctx.strokeStyle = isWhite ? '#222' : '#f0d9b5';
+  ctx.lineWidth = 3;
+
+  const x = 5, y = 5, w = 150, h = 54, r = 12;
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r); ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h); ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r); ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+
+  ctx.font = 'bold 24px sans-serif';
+  ctx.fillStyle = isWhite ? '#111' : '#fff';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(name, 80, 32);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, depthTest: false }));
+  sprite.scale.set(1.4, 0.56, 1);
+  sprite.renderOrder = 999;
+  sprite.raycast = () => {};
+  return sprite;
+}
+
+function instantiatePieceMesh(type, r, c) {
+  const isWhite = type === type.toUpperCase();
+  const mat = isWhite ? materials.pieceWhite : materials.pieceBlack;
+  const upper = type.toUpperCase();
+  const root = new THREE.Group();
+  let model;
+
+  if (upper === 'P') {
+    const pts = [new THREE.Vector2(0,0), new THREE.Vector2(0.44,0), new THREE.Vector2(0.44,0.08), new THREE.Vector2(0.32,0.22), new THREE.Vector2(0.16,0.72), new THREE.Vector2(0.24,0.84), new THREE.Vector2(0.22,1.05), new THREE.Vector2(0,1.18)];
+    model = new THREE.Mesh(new THREE.LatheGeometry(pts, 32), mat);
+  } else if (upper === 'R') {
+    model = new THREE.Group();
+    const pts = [new THREE.Vector2(0,0), new THREE.Vector2(0.48,0), new THREE.Vector2(0.4,0.18), new THREE.Vector2(0.28,0.8), new THREE.Vector2(0.42,1.35), new THREE.Vector2(0.32,1.35), new THREE.Vector2(0,1.15)];
+    model.add(new THREE.Mesh(new THREE.LatheGeometry(pts, 32), mat));
+    for (let i = 0; i < 6; i++) {
+      const b = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.22, 0.14), mat);
+      const angle = (i * Math.PI) / 3;
+      b.position.set(Math.cos(angle) * 0.36, 1.44, Math.sin(angle) * 0.36);
+      model.add(b);
+    }
+  } else if (upper === 'N') {
+    model = new THREE.Group();
+    const basePts = [new THREE.Vector2(0,0), new THREE.Vector2(0.48,0), new THREE.Vector2(0.4,0.2), new THREE.Vector2(0.28,0.4), new THREE.Vector2(0,0.4)];
+    model.add(new THREE.Mesh(new THREE.LatheGeometry(basePts, 32), mat));
+    const neck = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.75, 0.52), mat);
+    neck.position.set(0, 0.78, -0.06); neck.rotation.x = -0.32;
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.45, 0.5), mat);
+    head.position.set(0, 1.05, 0.16); head.rotation.x = -0.15;
+    const snout = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.35, 0.4), mat);
+    snout.position.set(0, 0.88, 0.42); snout.rotation.x = 0.25;
+    const earL = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.25, 4), mat);
+    earL.position.set(0.1, 1.35, 0.05);
+    const earR = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.25, 4), mat);
+    earR.position.set(-0.1, 1.35, 0.05);
+    model.add(neck, head, snout, earL, earR);
+    model.rotation.y = isWhite ? 0 : Math.PI;
+  } else if (upper === 'B') {
+    const pts = [new THREE.Vector2(0,0), new THREE.Vector2(0.48,0), new THREE.Vector2(0.38,0.18), new THREE.Vector2(0.22,0.9), new THREE.Vector2(0.28,1.45), new THREE.Vector2(0.08,1.68), new THREE.Vector2(0,1.82)];
+    model = new THREE.Mesh(new THREE.LatheGeometry(pts, 32), mat);
+  } else if (upper === 'Q') {
+    model = new THREE.Group();
+    const pts = [new THREE.Vector2(0,0), new THREE.Vector2(0.52,0), new THREE.Vector2(0.42,0.22), new THREE.Vector2(0.24,1.05), new THREE.Vector2(0.46,1.72), new THREE.Vector2(0,1.72)];
+    model.add(new THREE.Mesh(new THREE.LatheGeometry(pts, 32), mat));
+    for (let i = 0; i < 8; i++) {
+      const b = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 12), mat);
+      const angle = (i * Math.PI) / 4;
+      b.position.set(Math.cos(angle) * 0.44, 1.75, Math.sin(angle) * 0.44);
+      model.add(b);
+    }
+  } else if (upper === 'K') {
+    model = new THREE.Group();
+    const pts = [new THREE.Vector2(0,0), new THREE.Vector2(0.54,0), new THREE.Vector2(0.44,0.24), new THREE.Vector2(0.26,1.1), new THREE.Vector2(0.46,1.62), new THREE.Vector2(0,1.78)];
+    model.add(new THREE.Mesh(new THREE.LatheGeometry(pts, 32), mat));
+    const crossV = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.45, 0.12), mat);
+    crossV.position.y = 2.0;
+    const crossH = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.12, 0.12), mat);
+    crossH.position.y = 2.06;
+    model.add(crossV, crossH);
+  }
+
+  root.traverse(child => {
+    if (child.isMesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+      child.userData = { r, c, isPiece: true };
+    }
+  });
+  root.add(model);
+
+  const label = createLabelSprite(type);
+  const heights = { P: 1.5, R: 1.75, N: 1.75, B: 2.0, Q: 2.15, K: 2.45 };
+  label.position.y = heights[upper] || 1.9;
+  root.add(label);
+
+  root.userData = { r, c, isPiece: true, type };
+  return root;
+}
+
+function get3DPos(r, c, y = 0.1) {
+  return new THREE.Vector3((c - BOARD_OFFSET) * SQ_SIZE, y, (r - BOARD_OFFSET) * SQ_SIZE);
+}
+
+function sync3DPieces() {
+  for (const k in pieceMeshes) scene.remove(pieceMeshes[k]);
+  pieceMeshes = {};
+
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const piece = board[r][c];
+      if (piece) {
+        const mesh = instantiatePieceMesh(piece, r, c);
+        mesh.position.copy(get3DPos(r, c));
+        scene.add(mesh);
+        pieceMeshes[`${r}_${c}`] = mesh;
+      }
+    }
+  }
+}
+
+function animatePieceMove(from, to, isCapture, onComplete) {
+  const mesh = pieceMeshes[`${from.r}_${from.c}`];
+  if (!mesh) { onComplete(); return; }
+
+  isAnimating = true;
+  const startPos = mesh.position.clone();
+  const endPos = get3DPos(to.r, to.c);
+  const duration = 240;
+  const startTime = performance.now();
+
+  function step(now) {
+    const elapsed = now - startTime;
+    const progress = Math.min(elapsed / duration, 1.0);
+    const t = 0.5 - Math.cos(progress * Math.PI) / 2;
+
+    mesh.position.lerpVectors(startPos, endPos, t);
+    mesh.position.y = 0.1 + Math.sin(progress * Math.PI) * 1.5;
+
+    if (progress < 1.0) {
+      requestAnimationFrame(step);
+    } else {
+      mesh.position.copy(endPos);
+      isAnimating = false;
+      
+      if (isCapture) {
+        playSound('capture');
+        triggerCaptureSparks(endPos);
+      } else {
+        playSound('move');
+      }
+
+      onComplete();
+    }
+  }
+  requestAnimationFrame(step);
+}
+
+function clearHints() {
+  hintMeshes.forEach(m => scene.remove(m));
+  hintMeshes = [];
+}
+
+function showMoveHints() {
+  clearHints();
+  const circleGeo = new THREE.CylinderGeometry(0.35, 0.35, 0.05, 16);
+  const ringGeo = new THREE.RingGeometry(0.55, 0.85, 24);
+  ringGeo.rotateX(-Math.PI / 2);
+
+  for (const m of validMoves) {
+    const isCap = board[m.to.r][m.to.c] || m.isEnPassant;
+    const hint = new THREE.Mesh(isCap ? ringGeo : circleGeo, isCap ? materials.hintCapture : materials.hintMove);
+    hint.position.copy(get3DPos(m.to.r, m.to.c, 0.15));
+    hint.userData = { r: m.to.r, c: m.to.c, isHint: true };
+    scene.add(hint);
+    hintMeshes.push(hint);
+  }
+}
+
+/* ================= タップ＆クリック判定 ================= */
+function onPointerTap(e) {
+  if (isGameOver || isAnimating) return;
+  if (gameMode === 'cpu' && turn !== 'w') return;
+  if (gameMode === 'online' && turn !== myColor) return;
+
+  const rect = renderer.domElement.getBoundingClientRect();
+  mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+
+  const intersects = raycaster.intersectObjects(scene.children, true);
+
+  for (const hit of intersects) {
+    if (hit.object && hit.object.userData && hit.object.userData.r !== undefined) {
+      handleSelection(hit.object.userData.r, hit.object.userData.c);
+      break;
+    }
+  }
+}
+
+async function handleSelection(r, c) {
+  const move = validMoves.find(m => m.to.r === r && m.to.c === c);
+  const tag = document.getElementById('piece-tag');
+
+  if (move) {
+    clearHints();
+    selectedTileMesh.visible = false;
+    tag.style.display = 'none';
+
+    const isCap = !!board[move.to.r][move.to.c] || move.isEnPassant;
+
+    animatePieceMove(move.from, move.to, isCap, async () => {
+      executeLogicMove(move);
+      sync3DPieces();
+      selectedSq = null;
+      validMoves = [];
+
+      turn = turn === 'w' ? 'b' : 'w';
+      updateStatus();
+
+      if (isKingAttacked(board, turn)) {
+        showCheckBanner();
+      }
+
+      if (checkGameOver()) return;
+
+      if (gameMode === 'online') {
+        await sendOnlineMove(move);
+      } else {
+        await makeCpuMove();
+      }
+    });
+    return;
+  }
+
+  const p = board[r][c];
+  const isMyTurnPiece = (turn === 'w' && p && p === p.toUpperCase()) || (turn === 'b' && p && p === p.toLowerCase());
+
+  if (selectedSq && pieceMeshes[`${selectedSq.r}_${selectedSq.c}`]) {
+    pieceMeshes[`${selectedSq.r}_${selectedSq.c}`].position.y = 0.1;
+  }
+
+  if (isMyTurnPiece) {
+    selectedSq = { r, c };
+    validMoves = generateLegalMoves(board, turn).filter(m => m.from.r === r && m.from.c === c);
+    showMoveHints();
+
+    selectedTileMesh.position.set((c - BOARD_OFFSET) * SQ_SIZE, 0.05, (r - BOARD_OFFSET) * SQ_SIZE);
+    selectedTileMesh.visible = true;
+
+    if (pieceMeshes[`${r}_${c}`]) {
+      pieceMeshes[`${r}_${c}`].position.y = 0.4;
+    }
+
+    tag.textContent = `選択: ${PIECE_NAMES[p.toUpperCase()]}`;
+    tag.style.display = 'inline-block';
+  } else {
+    selectedSq = null;
+    validMoves = [];
+    clearHints();
+    selectedTileMesh.visible = false;
+    tag.style.display = 'none';
+  }
+}
+
+function showCheckBanner() {
+  playSound('check');
+  const banner = document.getElementById('check-banner');
+  banner.style.display = 'block';
+  setTimeout(() => { banner.style.display = 'none'; }, 1200);
+}
+
+/* ================= 勝敗判定 ＆ レート増減 ================= */
+function checkGameOver() {
+  const legal = generateLegalMoves(board, turn);
+  if (legal.length === 0) {
+    isGameOver = true;
+    const inCheck = isKingAttacked(board, turn);
+    if (inCheck) {
+      const won = (gameMode === 'online' && turn !== myColor) || (gameMode === 'cpu' && turn === 'b');
+      applyRatingChange(won);
+      if (won) {
+        playSound('win');
+        showModal("チェックメイト！勝利！🏆", "お見事です！相手のキングを詰ませました。");
+      } else {
+        showModal("チェックメイト…敗北", "残念！あなたのキングが詰まされました。");
+      }
+    } else {
+      showModal("引き分け（ステイルメイト）", "合法手がありません。引き分けです。");
+      const deltaEl = document.getElementById('modal-rating-delta');
+      deltaEl.className = 'modal-rating-delta';
+      deltaEl.textContent = `±0 (Rating: ${playerRating})`;
+    }
+    return true;
+  }
+  return false;
+}
+
+/* ================= CPU 100段階 ================= */
+function updateCpuLevelText(val) {
+  cpuLevel = parseInt(val);
+  const text = document.getElementById('cpu-level-text');
+  if (cpuLevel === 100) text.textContent = 'Lv.100 (世界最強)';
+  else if (cpuLevel >= 80) text.textContent = `Lv.${cpuLevel} (超上級)`;
+  else if (cpuLevel >= 50) text.textContent = `Lv.${cpuLevel} (中級者)`;
+  else if (cpuLevel >= 20) text.textContent = `Lv.${cpuLevel} (初級者)`;
+  else text.textContent = `Lv.${cpuLevel} (超初心者)`;
+}
+
+async function makeCpuMove() {
+  const legal = generateLegalMoves(board, 'b');
+  if (legal.length === 0) { checkGameOver(); return; }
+
+  let chosen = null;
+  const bestRate = (cpuLevel - 1) / 99;
+  const useBest = Math.random() < bestRate;
+
+  if (useBest) {
+    try {
+      const res = await fetch("https://chess-api.com/v1", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fen: getFen(), depth: Math.max(1, Math.floor(cpuLevel / 7)) })
+      });
+      const d = await res.json();
+      if (d && d.from && d.to) {
+        const fC = d.from.charCodeAt(0) - 97, fR = 8 - parseInt(d.from[1]);
+        const tC = d.to.charCodeAt(0) - 97, tR = 8 - parseInt(d.to[1]);
+        chosen = legal.find(m => m.from.r === fR && m.from.c === fC && m.to.r === tR && m.to.c === tC);
+      }
+    } catch(e) {}
+  }
+
+  if (!chosen) {
+    chosen = legal[Math.floor(Math.random() * legal.length)];
+  }
+
+  const isCap = !!board[chosen.to.r][chosen.to.c] || chosen.isEnPassant;
+
+  animatePieceMove(chosen.from, chosen.to, isCap, () => {
+    executeLogicMove(chosen);
+    sync3DPieces();
+    turn = 'w';
+    updateStatus();
+
+    if (isKingAttacked(board, 'w')) {
+      showCheckBanner();
+    }
+    checkGameOver();
+  });
+}
+
+/* ================= オンライン対戦 ================= */
+async function startMatchmaking() {
+  document.getElementById('match-btn-container').style.display = 'none';
+  document.getElementById('matching-status').style.display = 'flex';
+
+  try {
+    const data = await requestGAS({ action: 'match', pid: myPid });
+
+    if (data.status === 'matched') {
+      onMatchSuccess(data.myColor);
+    } else {
+      matchPollTimer = setInterval(async () => {
+        try {
+          const pollData = await requestGAS({ action: 'pollMatch', pid: myPid });
+          if (pollData.status === 'matched') {
+            clearInterval(matchPollTimer);
+            onMatchSuccess(pollData.myColor);
+          }
+        } catch(e) {}
+      }, 1000);
+    }
+  } catch(e) {
+    alert("通信エラーが発生しました。");
+    cancelMatchmaking();
+  }
+}
+
+async function cancelMatchmaking() {
+  if (matchPollTimer) clearInterval(matchPollTimer);
+  document.getElementById('matching-status').style.display = 'none';
+  document.getElementById('match-btn-container').style.display = 'block';
+  try { await requestGAS({ action: 'cancelMatch', pid: myPid }); } catch(e) {}
+}
+
+function onMatchSuccess(assignedColor) {
+  if (matchPollTimer) clearInterval(matchPollTimer);
+  myColor = assignedColor;
+  gameMode = 'online';
+
+  setFixedCameraView(myColor);
+
+  document.getElementById('home-screen').style.display = 'none';
+  document.getElementById('game-ui').style.display = 'flex';
+
+  initBoard();
+  startOnlineMovePolling();
+}
+
+function startCpuGame() {
+  gameMode = 'cpu';
+  myColor = 'w';
+  setFixedCameraView('w');
+
+  document.getElementById('home-screen').style.display = 'none';
+  document.getElementById('game-ui').style.display = 'flex';
+  initBoard();
+}
+
+function leaveGame() {
+  if (gameMode === 'online' && !isGameOver) {
+    requestGAS({ action: 'leave', pid: myPid });
+    applyRatingChange(false);
+  }
+  closeModalAndHome();
+}
+
+window.addEventListener('beforeunload', () => {
+  if (gameMode === 'online' && !isGameOver) {
+    navigator.sendBeacon(`${GAS_URL}?action=leave&pid=${myPid}`);
+  }
+});
+
+function showModal(title, desc) {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-desc').textContent = desc;
+  document.getElementById('modal-overlay').style.display = 'flex';
+}
+
+function closeModalAndHome() {
+  if (matchPollTimer) clearInterval(matchPollTimer);
+  if (movePollTimer) clearInterval(movePollTimer);
+  document.getElementById('modal-overlay').style.display = 'none';
+  document.getElementById('game-ui').style.display = 'none';
+  document.getElementById('home-screen').style.display = 'flex';
+  cancelMatchmaking();
+}
+
+async function sendOnlineMove(move) {
+  const moveStr = `${String.fromCharCode(97 + move.from.c)}${8 - move.from.r}${String.fromCharCode(97 + move.to.c)}${8 - move.to.r}`;
+  try {
+    await requestGAS({ action: 'send', color: myColor, move: moveStr });
+  } catch(e) {}
+}
+
+function startOnlineMovePolling() {
+  if (movePollTimer) clearInterval(movePollTimer);
+  movePollTimer = setInterval(async () => {
+    if (!isAnimating && turn !== myColor && !isRequesting) {
+      isRequesting = true;
+      try {
+        const data = await requestGAS({ action: 'poll', color: myColor });
+        if (data && data.move) {
+          if (data.move === "LEAVE") {
+            clearInterval(movePollTimer);
+            isGameOver = true;
+            applyRatingChange(true);
+            playSound('win');
+            showModal("勝利！🏆", "相手が退出しました。あなたの不戦勝です！");
+            return;
+          }
+
+          const fC = data.move.charCodeAt(0) - 97, fR = 8 - parseInt(data.move[1]);
+          const tC = data.move.charCodeAt(2) - 97, tR = 8 - parseInt(data.move[3]);
+          const legal = generateLegalMoves(board, turn);
+          const opponentMove = legal.find(m => m.from.r === fR && m.from.c === fC && m.to.r === tR && m.to.c === tC);
+          if (opponentMove) {
+            const isCap = !!board[opponentMove.to.r][opponentMove.to.c] || opponentMove.isEnPassant;
+            animatePieceMove(opponentMove.from, opponentMove.to, isCap, () => {
+              executeLogicMove(opponentMove);
+              sync3DPieces();
+              turn = myColor;
+              updateStatus();
+
+              if (isKingAttacked(board, myColor)) {
+                showCheckBanner();
+              }
+              checkGameOver();
+            });
+          }
+        }
+      } catch(e) {}
+      finally {
+        isRequesting = false;
+      }
+    }
+  }, 1000);
+}
+
+/* ================= チェスロジック ================= */
+function initBoard() {
+  board = [
+    ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'],
+    ['p', 'p', 'p', 'p', 'p', 'p', 'p', 'p'],
+    Array(8).fill(null), Array(8).fill(null), Array(8).fill(null), Array(8).fill(null),
+    ['P', 'P', 'P', 'P', 'P', 'P', 'P', 'P'],
+    ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R']
+  ];
+  turn = 'w';
+  selectedSq = null;
+  validMoves = [];
+  lastMove = null;
+  isGameOver = false;
+  isAnimating = false;
+  castling = { K: true, Q: true, k: true, q: true };
+  if (selectedTileMesh) selectedTileMesh.visible = false;
+  updateStatus();
+  clearHints();
+  sync3DPieces();
+}
+
+function updateStatus() {
+  const el = document.getElementById('status-text');
+  if (gameMode === 'cpu') {
+    el.textContent = turn === 'w' ? '手番: あなた（白）' : `手番: CPU Lv.${cpuLevel}`;
+    el.style.color = '#fff';
+  } else {
+    if (turn === myColor) {
+      el.textContent = `手番: あなた（${myColor === 'w' ? '白' : '黒'}）`;
+      el.style.color = '#4caf50';
+    } else {
+      el.textContent = '相手の思考中...';
+      el.style.color = '#d4af37';
+    }
+  }
+}
+
+function executeLogicMove(move) {
+  const p = board[move.from.r][move.from.c];
+  board[move.to.r][move.to.c] = p;
+  board[move.from.r][move.from.c] = null;
+
+  if (move.isCastling) {
+    if (move.to.c === 6) { board[move.to.r][5] = board[move.to.r][7]; board[move.to.r][7] = null; }
+    else if (move.to.c === 2) { board[move.to.r][3] = board[move.to.r][0]; board[move.to.r][0] = null; }
+  }
+  if (p === 'P' && move.to.r === 0) board[move.to.r][move.to.c] = 'Q';
+  if (p === 'p' && move.to.r === 7) board[move.to.r][move.to.c] = 'q';
+
+  if (p === 'K') { castling.K = false; castling.Q = false; }
+  if (p === 'k') { castling.k = false; castling.q = false; }
+  lastMove = move;
+}
+
+function generateLegalMoves(b, side) {
+  const pseudo = [];
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const p = b[r][c];
+      if (!p) continue;
+      const isW = p === p.toUpperCase();
+      if ((side === 'w' && isW) || (side === 'b' && !isW)) generatePieceMoves(b, r, c, pseudo);
+    }
+  }
+  return pseudo.filter(m => {
+    const clone = b.map(row => [...row]);
+    clone[m.to.r][m.to.c] = clone[m.from.r][m.from.c];
+    clone[m.from.r][m.from.c] = null;
+    return !isKingAttacked(clone, side);
+  });
+}
+
+function generatePieceMoves(b, r, c, moves) {
+  const p = b[r][c], isW = p === p.toUpperCase(), f = isW ? -1 : 1;
+  const u = p.toUpperCase();
+
+  if (u === 'P') {
+    if (b[r + f] && !b[r + f][c]) {
+      moves.push({ from:{r,c}, to:{r: r + f, c} });
+      if ((isW ? r === 6 : r === 1) && !b[r + f * 2][c]) moves.push({ from:{r,c}, to:{r: r + f * 2, c} });
+    }
+    for (const dc of [-1, 1]) {
+      const tc = c + dc;
+      if (tc >= 0 && tc < 8 && b[r + f]) {
+        const t = b[r + f][tc];
+        if (t && (isW ? t === t.toLowerCase() : t === t.toUpperCase())) moves.push({ from:{r,c}, to:{r: r + f, c: tc} });
+      }
+    }
+  } else if (u === 'N') {
+    for (const [dr, dc] of [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]]) {
+      const nr = r + dr, nc = c + dc;
+      if (nr>=0 && nr<8 && nc>=0 && nc<8) {
+        const t = b[nr][nc];
+        if (!t || (isW ? t === t.toLowerCase() : t === t.toUpperCase())) moves.push({ from:{r,c}, to:{r: nr, c: nc} });
+      }
+    }
+  } else {
+    const dirs = [];
+    if ('BQ'.includes(u)) dirs.push([-1,-1],[-1,1],[1,-1],[1,1]);
+    if ('RQ'.includes(u)) dirs.push([-1,0],[1,0],[0,-1],[0,1]);
+    if (u === 'K') dirs.push([-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]);
+
+    for (const [dr, dc] of dirs) {
+      let nr = r + dr, nc = c + dc;
+      while (nr>=0 && nr<8 && nc>=0 && nc<8) {
+        const t = b[nr][nc];
+        if (!t) moves.push({ from:{r,c}, to:{r: nr, c: nc} });
+        else {
+          if (isW ? t === t.toLowerCase() : t === t.toUpperCase()) moves.push({ from:{r,c}, to:{r: nr, c: nc} });
+          break;
+        }
+        if (u === 'K') break;
+        nr += dr; nc += dc;
+      }
+    }
+  }
+}
+
+function isKingAttacked(b, side) {
+  const k = side === 'w' ? 'K' : 'k';
+  let kr = -1, kc = -1;
+  for (let r=0; r<8; r++) for (let c=0; c<8; c++) if (b[r][c] === k) { kr = r; kc = c; }
+  if (kr === -1) return false;
+
+  for (let r=0; r<8; r++) {
+    for (let c=0; c<8; c++) {
+      const p = b[r][c];
+      if (!p || (side === 'w' ? p === p.toUpperCase() : p === p.toLowerCase())) continue;
+      const u = p.toUpperCase(), isW = p === p.toUpperCase(), f = isW ? -1 : 1;
+      if (u === 'P' && r + f === kr && Math.abs(c - kc) === 1) return true;
+      if (u === 'N' && Math.abs(r - kr) * Math.abs(c - kc) === 2) return true;
+      if (u === 'K' && Math.abs(r - kr) <= 1 && Math.abs(c - kc) <= 1) return true;
+      if ('BQR'.includes(u)) {
+        const isDiag = Math.abs(r - kr) === Math.abs(c - kc);
+        const isOrth = r === kr || c === kc;
+        if (('BQ'.includes(u) && isDiag) || ('RQ'.includes(u) && isOrth)) {
+          const dr = Math.sign(kr - r), dc = Math.sign(kc - c);
+          let cr = r + dr, cc = c + dc, hit = true;
+          while (cr !== kr || cc !== kc) {
+            if (b[cr][cc]) { hit = false; break; }
+            cr += dr; cc += dc;
+          }
+          if (hit) return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+function getFen() {
+  let fen = '';
+  for (let r = 0; r < 8; r++) {
+    let empty = 0;
+    for (let c = 0; c < 8; c++) {
+      const p = board[r][c];
+      if (!p) empty++;
+      else { if (empty > 0) { fen += empty; empty = 0; } fen += p; }
+    }
+    if (empty > 0) fen += empty;
+    if (r < 7) fen += '/';
+  }
+  return `${fen} ${turn} - - 0 1`;
+}
+
+init3D();
+</script>
+</body>
+</html>
